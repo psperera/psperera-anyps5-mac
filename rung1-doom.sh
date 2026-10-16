@@ -17,6 +17,7 @@
 #   DOOM_HOST        host:port of the running title's capture socket (default 127.0.0.1:9119)
 
 set -euo pipefail
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAC="$HERE/anyps5-mac.sh"; [[ -x "$MAC" ]] || { echo "anyps5-mac.sh not found beside this script" >&2; exit 1; }
 

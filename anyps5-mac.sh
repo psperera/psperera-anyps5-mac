@@ -19,6 +19,9 @@
 
 set -euo pipefail
 
+# Homebrew tools first: a venv python (e.g. an MCP extension) can shadow the one with numpy/pillow
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 ANYPS5_REMOTE="${ANYPS5_REMOTE:-https://github.com/yripper/AnyPS5.git}"
 ANYPS5_BRANCH="${ANYPS5_BRANCH:-feat/macos-runtime}"
 ANYPS5_TESTS="${ANYPS5_TESTS:-1}"
@@ -93,7 +96,12 @@ configure_and_build() {
     -DBUILD_TESTING=ON \
     ${CCACHE:+-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache}
   log "Build (-k 0 keeps going past failures, as the branch doc recommends)"
-  cmake --build "$BUILD" --parallel "$ANYPS5_JOBS" -- -k 0
+  local build_rc=0
+  cmake --build "$BUILD" --parallel "$ANYPS5_JOBS" -- -k 0 || build_rc=$?
+  if (( build_rc != 0 )); then
+    log "main build reported failures (on this branch the known ones are test-only targets: GuestRaiseException, GuestDup, dma-buf tests); continuing to libs"
+  fi
+  [[ -x "$BUILD/core/relinker/relinker" ]] || die "relinker did not build — real failure, see the output above"
   log "Build libs target"
   cmake --build "$BUILD" --target libs --parallel "$ANYPS5_JOBS" -- -k 0 || log "libs target reported failures — check above"
 

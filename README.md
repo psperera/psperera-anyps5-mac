@@ -15,6 +15,7 @@ branch's own `docs/user/MACOS.md` flow so they stay aligned as it changes.
 |---|---|
 | `anyps5-mac.sh` | `build` (prereqs → clone → submodules → CMake x86_64 Release → ctest), `setup <dump> <game_dir>`, `run <game_dir> [--profile]`, `summary <log>`, `update` |
 | `rung1-doom.sh` | Rung 1: [ps5-doom](https://github.com/lowbit/ps5-doom) (PPSA99666). `fetch` the release zip with sha256 check, `setup`, `oracle` (headless host build in Docker renders reference frames), `run`, `capture`, `diff` |
+| `rung2-openrct2.sh` | Rung 2: [ps5-openrct2](https://github.com/lowbit/ps5-openrct2) (PPSA99728). `fetch`, `setup`, `game <gog-installer.exe\|folder\|zip>` (innoextract into `app0/rct2`, bypassing the title's upload page), `run` |
 | `tools/unself.py` | The branch's SELF unwrapper plus the second fake-signed magic (`54 14 f5 ee`) that `ps5-native-tool` writes for `libc.prx`; `rung1-doom.sh setup` installs it only if the branch's copy still rejects the file |
 | `tools/doom-capture.py` | Standalone client for ps5-doom's frame socket (9119): receive, de-tile the 512×128 PS5 layout, write PNG. Verified as an exact round-trip against `tiling.h` |
 | `tools/rung1-plan.cfg` | The `test.cfg` plan the title reads from `app0/`: skip the launcher, run the attract demo, capture frames 120 and 900, serve them on 9119 |
@@ -43,6 +44,10 @@ ps5-doom's CPU scaler and bisect between the two.
 
 Rung 2, once DOOM presents: [ps5-openrct2](https://github.com/lowbit/ps5-openrct2) (PPSA99728) with
 your own RollerCoaster Tycoon 2 files.
+
+## Results
+
+`results/` holds dated run logs. 2026-10-16: rung 1 passes on a Mac Studio M1 Ultra — DOOM renders through the AGC compute presenter (wave64 kernel on a 32-lane GPU) and matches the oracle; a teardown `mutex lock failed` crash after `exit 0` is the open finding.
 
 ## Test
 
