@@ -1,0 +1,1 @@
+ef91cddc494c0b9662f7d9030c4af6b3f071820d test(recompiler): expect request serialization version 27

@@ -1,0 +1,10 @@
+core/libs/prx/libc/CMakeFiles/guest_generic_category_tests.dir/__/__/tests/GuestGenericCategory.cpp.o 
+core/libs/prx/libc/CMakeFiles/guest_formatting_tests.dir/__/__/tests/Formatting.cpp.o 
+core/libs/prx/libSceAgcDriver/CMakeFiles/agc_shared_write_tests.dir/tests/SharedWrites.cpp.o 
+core/libs/prx/libSceAgcDriver/CMakeFiles/agc_host_import_sparse_tests.dir/tests/HostImportSparseDmaBuf.cpp.o 
+core/libs/prx/libSceAgcDriver/CMakeFiles/agc_driver_sparse_dma_buf_import_tests.dir/tests/execution/SparseDmaBufImport.cpp.o 
+core/libs/prx/libkernel/libguest_module_fixture.dylib 
+core/libs/prx/libkernel/CMakeFiles/guest_pthread_mutexattr_tests.dir/__/__/tests/GuestPthreadMutexattr.cpp.o 
+core/libs/prx/libkernel/CMakeFiles/guest_sched_priority_tests.dir/__/__/tests/GuestSchedPriority.cpp.o 
+core/libs/prx/libkernel/CMakeFiles/guest_raise_exception_tests.dir/__/__/tests/GuestRaiseException.cpp.o 
+core/libs/prx/libkernel/CMakeFiles/guest_dup_tests.dir/__/__/tests/GuestDup.cpp.o 
