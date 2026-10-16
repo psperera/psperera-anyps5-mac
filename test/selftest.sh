@@ -28,20 +28,20 @@ shim df         'printf "Filesystem 1G-blocks Used Available Capacity Mounted on
 shim docker     'exit 0'
 shim curl       'out=""; while (($#)); do [[ $1 == -o ]] && out=$2; shift; done; [[ -n $out ]] && { [[ $out == *.sha256 ]] && echo "0000  PPSA99666.zip" > "$out" || : > "$out"; }; exit 0'
 shim shasum     'exit 0'
-shim unzip      'mkdir -p PPSA99666/sce_sys PPSA99666/wads; : > PPSA99666/eboot.bin; echo "{}" > PPSA99666/sce_sys/param.json; : > PPSA99666/wads/doom1.wad'
+shim unzip      'mkdir -p PPSA99666/sce_sys PPSA99666/wads PPSA99666/sce_module; cp "$FIXTURES/libc.prx.head" PPSA99666/sce_module/libc.prx; : > PPSA99666/eboot.bin; echo "{}" > PPSA99666/sce_sys/param.json; : > PPSA99666/wads/doom1.wad'
 shim du         'echo "1M	x"'
 # git shim: clone creates a fake checkout with the branch's tools/macos scripts; everything else succeeds
 cat >"$T/bin/git" <<'EOF'
 #!/usr/bin/env bash
 echo "git $*" >>"$CALLS"
 if [[ "$1" == clone ]]; then dest="${@: -1}"; mkdir -p "$dest/.git" "$dest/tools/macos" "$dest/docker"
-  printf '#!/usr/bin/env bash\necho "setup-game.sh $*" >>"%s"\nmkdir -p "$2"; printf "#!/bin/sh\\n" | tee "$2/run.sh" "$2/run-profile.sh" >/dev/null; chmod +x "$2"/run*.sh\n' "$CALLS" >"$dest/tools/macos/setup-game.sh"
-  chmod +x "$dest/tools/macos/setup-game.sh"; echo "print('summary ok')" >"$dest/tools/macos/profile_summary.py"; fi
+  printf '#!/usr/bin/env bash\necho "setup-game.sh $*" >>"%s"\nmkdir -p "$2/app0"; printf "#!/bin/sh\\n" | tee "$2/run.sh" "$2/run-profile.sh" >/dev/null; chmod +x "$2"/run*.sh\n' "$CALLS" >"$dest/tools/macos/setup-game.sh"
+  chmod +x "$dest/tools/macos/setup-game.sh"; echo "print('summary ok')" >"$dest/tools/macos/profile_summary.py"; cp "$FIXTURES/unself-orig.py" "$dest/tools/macos/unself.py"; fi
 [[ "$1" == log ]] && echo "abc1234 fake head"
 [[ "$1" == -C && "$3" == log ]] && echo "abc1234 fake head"
 exit 0
 EOF
-chmod +x "$T/bin/git"; export CALLS="$LOG"
+chmod +x "$T/bin/git"; export CALLS="$LOG" FIXTURES="$ROOT/test/fixtures"
 # fake Vulkan SDK
 mkdir -p "$HOME/VulkanSDK/1.4.0/macOS/lib" "$HOME/VulkanSDK/1.4.0/macOS/share/vulkan/icd.d"
 : >"$HOME/VulkanSDK/1.4.0/macOS/lib/libvulkan.1.dylib"
@@ -77,13 +77,17 @@ echo "== rung1-doom.sh"
 called "curl -fL --retry 3 -o $ANYPS5_ROOT/rung1-doom/PPSA99666.zip https://github.com/lowbit/ps5-doom/releases/download/v1.0.1/PPSA99666.zip"
 called "shasum -a 256 -c PPSA99666.zip.sha256"
 [[ -f "$ANYPS5_ROOT/rung1-doom/dump/PPSA99666/eboot.bin" ]] && ok "dump unpacked at expected path" || bad "dump path wrong"
-"$RUNG" setup >/dev/null 2>&1 && ok "setup relinks via anyps5-mac.sh" || bad "setup failed"
+"$RUNG" setup >"$T/setup.out" 2>&1 && ok "setup relinks via anyps5-mac.sh" || { bad "setup failed"; cat "$T/setup.out"; }
+grep -q "installing patched copy" "$T/setup.out" && ok "setup patches branch unself.py when it rejects libc.prx" || bad "unself patch not applied"
+cmp -s "$ANYPS5_ROOT/AnyPS5/tools/macos/unself.py" "$ROOT/tools/unself.py" && ok "patched unself.py installed" || bad "unself.py not replaced"
+python3 -I "$ANYPS5_ROOT/AnyPS5/tools/macos/unself.py" "$ANYPS5_ROOT/rung1-doom/dump/PPSA99666/sce_module/libc.prx" "$T/probe.elf" 2>&1 | grep -q "^FAIL: not a SELF" && bad "patched unself still rejects magic" || ok "patched unself accepts 54 14 f5 ee magic"
+grep -q "^serve 9119" "$ANYPS5_ROOT/rung1-doom/game/app0/test.cfg" && grep -q "^game doom1.wad" "$ANYPS5_ROOT/rung1-doom/game/app0/test.cfg" && ok "test.cfg installed into app0" || bad "test.cfg missing"
 called "setup-game.sh $ANYPS5_ROOT/rung1-doom/dump/PPSA99666 $ANYPS5_ROOT/rung1-doom/game"
 "$RUNG" oracle >"$T/oracle.out" 2>&1 && ok "oracle completes" || { bad "oracle failed"; cat "$T/oracle.out"; }
 called "git clone --branch v1.0.1 --depth 1 https://github.com/lowbit/ps5-doom.git"
 called "docker build -t ps5-doom-build"
 called "docker run --rm --platform linux/amd64"
-grep -q "DOOM_IWAD=doom1.wad" "$LOG" && ok "oracle renders doom1.wad timedemo" || bad "oracle env missing"
+grep -q "DOOM_IWAD=doom1.wad" "$LOG" && grep -q "DOOM_FRAMES=1000" "$LOG" && ! grep -q "timedemo" "$LOG" && ok "oracle renders doom1.wad attract demo (no -timedemo)" || bad "oracle env wrong"
 "$RUNG" run >/dev/null 2>&1 && ok "run launches title" || bad "run failed"
 "$RUNG" run --profile >/dev/null 2>&1 && ok "run --profile launches profile script" || bad "run --profile failed"
 shim docker 'exit 0'; rm "$T/bin/docker"

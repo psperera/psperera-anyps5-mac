@@ -6,7 +6,7 @@
 #   setup     relink it with anyps5-mac.sh (tools/macos/setup-game.sh)
 #   oracle    build ps5-doom's headless host backend in Docker and render reference frames of demo1
 #   run       launch DOOM through AnyPS5 (optionally with the profile log)
-#   capture   pull frames from the running title over its test port (9119) and de-tile to PNG
+#   capture   pull frames from the running title over its test port (9119) with tools/doom-capture.py
 #   diff      compare captured frames to the oracle frames
 #   all       fetch → setup → oracle → run
 #
@@ -51,11 +51,32 @@ cmd_fetch() {
   log "Dump ready: $DUMP ($(du -sh "$DUMP" | cut -f1)); shareware WAD: $(ls "$DUMP/wads" 2>/dev/null | tr '\n' ' ')"
 }
 
+ANYPS5_SRC="$ANYPS5_ROOT/AnyPS5"
+
+patch_unself() {
+  # ps5-doom's libc.prx uses the second fake-signed magic (54 14 f5 ee); the branch's unself.py
+  # only knows 4f 15 3d 1d and setup-game.sh aborts on it. Swap in our copy (same code, both magics)
+  # only when the branch's own copy still fails on it.
+  local up="$ANYPS5_SRC/tools/macos/unself.py"
+  [[ -f "$up" ]] || die "no $up — run anyps5-mac.sh build first"
+  local probe; probe=$(python3 -I "$up" "$DUMP/sce_module/libc.prx" "$WORK/.unself-probe.elf" 2>&1 || true)
+  if [[ "$probe" == FAIL* ]]; then
+    log "branch unself.py rejects libc.prx; installing patched copy (accepts both fake-signed magics)"
+    cp "$up" "$up.orig" 2>/dev/null || true
+    cp "$HERE/tools/unself.py" "$up"
+  fi
+  rm -f "$WORK/.unself-probe.elf"
+}
+
 cmd_setup() {
   [[ -f "$DUMP/eboot.bin" ]] || cmd_fetch
+  patch_unself
   log "Relinking through anyps5-mac.sh setup"
   "$MAC" setup "$DUMP" "$GAME"
-  log "Title directory: $GAME"
+  # test plan: the title reads test.cfg from its app0 folder, skips the launcher, runs the attract
+  # demo, captures the listed frames and serves them on 9119 (same mechanism as the author's console tests)
+  { cat "$HERE/tools/rung1-plan.cfg"; echo "serve 9119"; } > "$GAME/app0/test.cfg"
+  log "Title directory: $GAME (test plan installed: app0/test.cfg)"
   ls -la "$GAME" | sed 's/^/    /'
 }
 
@@ -70,10 +91,10 @@ cmd_oracle() {
   log "Building the headless host backend (linux/amd64 container; same game code, PNG frames out)"
   docker run --rm --platform linux/amd64 -v "$SRC:/src" -w /src ps5-doom-build make -j"$(sysctl -n hw.ncpu)" host
   mkdir -p "$ORACLE"
-  log "Rendering reference frames $DOOM_CAPTURE of demo1 (timedemo)"
+  log "Rendering reference frames $DOOM_CAPTURE of the attract demo (same path the Mac run takes via test.cfg)"
   docker run --rm --platform linux/amd64 -v "$SRC:/src" -v "$DUMP/wads:/wads:ro" -v "$ORACLE:/out" -w /src \
-    -e DOOM_WADDIR=/wads -e DOOM_IWAD=doom1.wad -e DOOM_OUT=/out -e DOOM_CAPTURE="$DOOM_CAPTURE" -e DOOM_SAVEDIR=/tmp \
-    ps5-doom-build build/host/bin/doom -timedemo demo1
+    -e DOOM_WADDIR=/wads -e DOOM_IWAD=doom1.wad -e DOOM_OUT=/out -e DOOM_CAPTURE="$DOOM_CAPTURE" -e DOOM_FRAMES=1000 -e DOOM_SAVEDIR=/tmp \
+    ps5-doom-build build/host/bin/doom
   log "Oracle frames:"; ls -1 "$ORACLE" | sed 's/^/    /'
 }
 
@@ -86,25 +107,18 @@ cmd_run() {
 }
 
 cmd_capture() {
-  # The title opens a TCP listener on 9119 and streams tiled frames to tools/console_test.py.
-  # Under AnyPS5 this depends on the offline socket stack accepting a listen(); if it does not, fall back to
-  # macOS screencapture at the oracle frame times (35 fps timedemo => frame/35 seconds after start).
-  [[ -d "$SRC" ]] || die "run 'oracle' first (needs the ps5-doom checkout for console_test.py)"
+  # The title (driven by app0/test.cfg) serves captured frames on 9119; tools/doom-capture.py is a
+  # standalone port of the receive/detile half of ps5-doom's console_test.py. Run this in a second
+  # terminal right after `run`; it waits up to 5 min for the socket.
   mkdir -p "$CAPT"
-  log "Attempting frame pull from $DOOM_HOST (title must be running)"
-  if ( cd "$SRC" && uv run --no-project python tools/console_test.py --host "$DOOM_HOST" --out "$CAPT" test/console-play.cfg ) 2>"$CAPT/console_test.err"; then
-    log "Frames de-tiled into $CAPT"
-  else
-    log "console_test.py could not connect (see $CAPT/console_test.err) — falling back to screencapture"
-    IFS=',' read -ra frames <<< "$DOOM_CAPTURE"
-    local t0; t0=$(date +%s)
-    for f in "${frames[@]}"; do
-      local at=$(( f / 35 ))
-      while (( $(date +%s) - t0 < at )); do sleep 0.2; done
-      screencapture -x "$CAPT/frame_${f}_screen.png"
-      log "captured screen at ~frame $f"
-    done
-  fi
+  python3 -I -c 'import numpy, PIL' 2>/dev/null || die "needs numpy and pillow: pip3 install numpy pillow"
+  python3 -I "$HERE/tools/doom-capture.py" --host "${DOOM_HOST%%:*}" --port "${DOOM_HOST##*:}" --out "$CAPT" \
+    && log "Frames de-tiled into $CAPT" \
+    || { log "no frames over 9119 (AnyPS5's socket stack may refuse listen()); falling back to screencapture"
+         IFS=',' read -ra frames <<< "$DOOM_CAPTURE"; local t0; t0=$(date +%s)
+         for f in "${frames[@]}"; do local at=$(( f / 35 ))
+           while (( $(date +%s) - t0 < at )); do sleep 0.2; done
+           screencapture -x "$CAPT/frame_${f}_screen.png"; log "captured screen at ~frame $f"; done; }
 }
 
 cmd_diff() {

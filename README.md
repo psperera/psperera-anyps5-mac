@@ -15,6 +15,9 @@ branch's own `docs/user/MACOS.md` flow so they stay aligned as it changes.
 |---|---|
 | `anyps5-mac.sh` | `build` (prereqs → clone → submodules → CMake x86_64 Release → ctest), `setup <dump> <game_dir>`, `run <game_dir> [--profile]`, `summary <log>`, `update` |
 | `rung1-doom.sh` | Rung 1: [ps5-doom](https://github.com/lowbit/ps5-doom) (PPSA99666). `fetch` the release zip with sha256 check, `setup`, `oracle` (headless host build in Docker renders reference frames), `run`, `capture`, `diff` |
+| `tools/unself.py` | The branch's SELF unwrapper plus the second fake-signed magic (`54 14 f5 ee`) that `ps5-native-tool` writes for `libc.prx`; `rung1-doom.sh setup` installs it only if the branch's copy still rejects the file |
+| `tools/doom-capture.py` | Standalone client for ps5-doom's frame socket (9119): receive, de-tile the 512×128 PS5 layout, write PNG. Verified as an exact round-trip against `tiling.h` |
+| `tools/rung1-plan.cfg` | The `test.cfg` plan the title reads from `app0/`: skip the launcher, run the attract demo, capture frames 120 and 900, serve them on 9119 |
 | `test/selftest.sh` | Exercises every subcommand on any OS by shimming the Mac-only tools; asserts the exact external calls each path makes |
 
 ## Requirements (on the Mac)
@@ -48,10 +51,16 @@ shellcheck -S warning anyps5-mac.sh rung1-doom.sh
 bash test/selftest.sh
 ```
 
+## Verified against the real artefacts (2026-10-15)
+
+- `PPSA99666.zip` v1.0.1: 2.2 MB, sha256 matches the published file; contains `eboot.bin` (fake-signed SELF → x86-64 `ET_SCE_DYNEXEC`, FreeBSD OSABI), `sce_module/libc.prx` (second magic, unwraps to a valid `ET_SCE_DYNLIB` with all 14 phdrs), `sce_sys/param.json`, `wads/doom1.wad`.
+- The branch's `run.sh` does `exec ./eboot` with no arguments, so the demo is driven by `app0/test.cfg` instead; the oracle runs the same attract demo with `DOOM_IWAD`/`DOOM_CAPTURE`/`DOOM_FRAMES`.
+- ps5-doom's `console_test.py` depends on the author's private console tooling (`ps5.py`, Payload Manager); `tools/doom-capture.py` replaces it.
+
 ## Known gaps
 
-- `rung1-doom.sh capture` assumes `tools/console_test.py --host/--out`; those flags are unverified, so it falls back to timed `screencapture`.
-- `run.sh` on the branch may not forward `-timedemo demo1`; start the demo from the launcher if the diff frames do not line up.
+- Whether AnyPS5's offline socket stack lets the title `listen()` on 9119 is untested; `capture` falls back to timed `screencapture` if the socket never opens.
+- The `tools/unself.py` magic fix should go upstream to the branch; until then `setup` patches the checkout in place and keeps `unself.py.orig`.
 
 ## License
 
