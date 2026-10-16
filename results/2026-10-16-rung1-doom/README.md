@@ -16,3 +16,9 @@ Vulkan SDK 1.4.363.0 / MoltenVK, yripper/AnyPS5 `feat/macos-runtime` at the comm
 Not yet done: frame 120 (consumed by a first capture attempt that failed on a broken numpy), `run-profile.sh`, a second clean run for determinism.
 
 Env notes: Homebrew `numpy` was a broken namespace package until reinstalled; `python3` on PATH was the Claude MCP venv — scripts should prefer `/opt/homebrew/bin/python3`.
+
+## Second run (profile) — 2026-10-16 03:32
+
+- `run-profile.sh`, same test plan. **35.3 presents/s** (DOOM's 35 Hz tic rate), 0 dropped, GPU busy ~8 ms/frame, `inflight_wait` p50 8.3 ms / p90 10.5 ms; 1000 dispatches, 2 pipeline-cache misses then all hits; dispatch overhead ~50 µs. Log: `profile-*.log`.
+- Frames 120 and 900 captured over 9119 and de-tiled (`mac-frame*-320.png`): **RMSE 3.7 and 2.0 /255** vs the oracle after resampling; 90 % / 98 % of pixels within 8. The 21.8 in run 1 was from a corrupted first pull, not the render.
+- Clean exit, no teardown crash this time — the `mutex lock failed` abort is intermittent (1 of 2 runs).
