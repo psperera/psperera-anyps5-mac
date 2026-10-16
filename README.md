@@ -25,7 +25,7 @@ branch's own `docs/user/MACOS.md` flow so they stay aligned as it changes.
 - Apple Silicon, Rosetta 2, Xcode Command Line Tools
 - `brew install cmake ninja python imagemagick` (ImageMagick only for `diff`)
 - [LunarG Vulkan SDK](https://vulkan.lunarg.com/sdk/home#mac) at `~/VulkanSDK/<ver>/macOS`, or `VULKAN_SDK` set
-- Docker Desktop (only for the `oracle` step)
+- Docker Desktop (only for the `oracle` step; `test/oracle/` already holds reference frames rendered from the same plan, so `diff` works without it)
 - ~20 GiB free where the checkout lives (`ANYPS5_ROOT`; defaults to `/Volumes/Lexar4TB/anyps5` if mounted, else `~/anyps5`)
 
 ## Use
@@ -56,6 +56,10 @@ bash test/selftest.sh
 - `PPSA99666.zip` v1.0.1: 2.2 MB, sha256 matches the published file; contains `eboot.bin` (fake-signed SELF → x86-64 `ET_SCE_DYNEXEC`, FreeBSD OSABI), `sce_module/libc.prx` (second magic, unwraps to a valid `ET_SCE_DYNLIB` with all 14 phdrs), `sce_sys/param.json`, `wads/doom1.wad`.
 - The branch's `run.sh` does `exec ./eboot` with no arguments, so the demo is driven by `app0/test.cfg` instead; the oracle runs the same attract demo with `DOOM_IWAD`/`DOOM_CAPTURE`/`DOOM_FRAMES`.
 - ps5-doom's `console_test.py` depends on the author's private console tooling (`ps5.py`, Payload Manager); `tools/doom-capture.py` replaces it.
+
+## Oracle without Docker
+
+The host backend also builds natively with clang 18 and libcurl headers (`make host` in the ps5-doom checkout). Where only the runtime `libcurl.so.4` is present, fetch the matching `include/curl/*.h` from curl's tag and pass `HOST_FLAGS="... -I<dir>" HOST_CC="clang -L<dir with libcurl.so symlink>"`. Only the WAD-download helper links curl; the demo path never calls it.
 
 ## Known gaps
 
