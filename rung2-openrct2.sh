@@ -76,7 +76,7 @@ cmd_game() {
     log "Unzipping game folder"
     ( cd "$dst.partial" && unzip -q "$src" )
     # tolerate a single top-level folder inside the zip
-    if [[ ! -d "$dst.partial/Data" ]]; then local inner; inner=$(find "$dst.partial" -maxdepth 2 -type d -name Data | head -1); [[ -n "$inner" ]] && mv "$(dirname "$inner")"/* "$dst.partial/" ; fi
+    if [[ ! -d "$dst.partial/Data" ]]; then local inner; inner=$(find "$dst.partial" -maxdepth 2 -type d -name Data | head -1); [[ -n "$inner" ]] && { mv "$(dirname "$inner")"/* "$dst.partial/"; rmdir "$(dirname "$inner")" 2>/dev/null || true; }; fi
   elif [[ "$src" == *.exe ]]; then
     command -v innoextract >/dev/null || die "innoextract needed for the GOG installer: brew install innoextract"
     [[ -f "${src%.exe}-1.bin" || -n "$(ls "$(dirname "$src")"/*.bin 2>/dev/null)" ]] || log "warning: no .bin beside the installer; GOG's offline installer needs both"
