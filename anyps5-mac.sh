@@ -132,6 +132,7 @@ cmd_setup() {
   [[ -f "$dump/eboot.bin" ]] || die "no eboot.bin in $dump (needs a decrypted dump)"
   log "setup-game.sh → $game  (modules: ${*:-sce_module only})"
   ( cd "$SRC" && tools/macos/setup-game.sh "$dump" "$game" "$@" )
+  [[ -f "$game/eboot" ]] && chmod +x "$game/eboot"   # the relinker writes it without the execute bit
   log "Title ready. Run: $0 run $game [--profile]"
 }
 
